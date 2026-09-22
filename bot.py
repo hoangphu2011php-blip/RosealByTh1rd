@@ -39,14 +39,29 @@ client = MyClient()
 async def on_ready():
     print(f'Bot đã đăng nhập thành công với tên: {client.user}')
 
-# --- PHẦN 3: Lệnh /roseal chuyển đổi Roblox username sang link Roseal ---
-@client.tree.command(name="roseal", description="Chuyển đổi tên người dùng Roblox thành liên kết Roseal")
+# --- PHẦN 3: Lệnh /roseal (Định dạng link Roseal theo file cũ của bạn) ---
+@client.tree.command(name="roseal", description="Chuyển đổi tên người dùng Roblox sang link Roseal")
 @app_commands.describe(username="Nhập tên người dùng Roblox")
 async def roseal(interaction: discord.Interaction, username: str):
-    await interaction.response.defer(thinking=True) # Đợi vì gọi API có thể mất chút thời gian
+    # Thay đổi cấu trúc link Roseal bên dưới cho khớp hoàn toàn với code cũ của bạn
+    roseal_url = f"https://roseal.ly/{username}" 
+    
+    embed = discord.Embed(
+        title="🔗 Roseal Link",
+        description=f"Link Roseal cho **{username}**:",
+        color=discord.Color.blue()
+    )
+    embed.add_field(name="Link:", value=roseal_url, inline=False)
+    
+    await interaction.response.send_message(embed=embed)
+
+# --- PHẦN 4: Lệnh /profilelink (Tính năng tra cứu profile Roblox API) ---
+@client.tree.command(name="profilelink", description="Tra cứu link profile Roblox chính thức qua API")
+@app_commands.describe(username="Nhập tên người dùng Roblox")
+async def profilelink(interaction: discord.Interaction, username: str):
+    await interaction.response.defer(thinking=True)
     
     try:
-        # Gọi Roblox API để lấy ID từ Username
         url = "https://users.roblox.com/v1/usernames/users"
         payload = {"usernames": [username], "excludeBannedUsers": True}
         response = requests.post(url, json=payload)
@@ -55,16 +70,14 @@ async def roseal(interaction: discord.Interaction, username: str):
         if data.get("data") and len(data["data"]) > 0:
             user_id = data["data"][0]["id"]
             display_name = data["data"][0]["displayName"]
-            
-            # Tạo link Roseal dựa trên ID hoặc thông tin người dùng
-            roseal_link = f"https://www.roblox.com/users/{user_id}/profile"
+            profile_link = f"https://www.roblox.com/users/{user_id}/profile"
             
             embed = discord.Embed(
-                title="✨ Roseal Link Converter",
+                title="✨ Roblox Profile Link",
                 description=f"**Tài khoản:** {display_name} (@{username})",
                 color=discord.Color.green()
             )
-            embed.add_field(name="Liên kết Roseal / Profile", value=f"[Nhấn vào đây để mở]({roseal_link})", inline=False)
+            embed.add_field(name="Profile chính thức:", value=f"[Nhấn vào đây để mở]({profile_link})", inline=False)
             
             await interaction.followup.send(embed=embed)
         else:
