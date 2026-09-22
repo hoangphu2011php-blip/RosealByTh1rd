@@ -38,7 +38,7 @@ client = MyClient()
 async def on_ready():
     print(f'Bot đã đăng nhập thành công với tên: {client.user}')
 
-# --- PHẦN 3: Lệnh /roseal có hỗ trợ nút copy link của Discord ---
+# --- PHẦN 3: Lệnh /roseal hiển thị cả link bấm được lẫn khung copy ---
 @client.tree.command(name="roseal", description="Tạo link Roseal join game của người chơi Roblox")
 @app_commands.describe(username="Nhập tên người dùng Roblox")
 async def roseal(interaction: discord.Interaction, username: str):
@@ -82,8 +82,13 @@ async def roseal(interaction: discord.Interaction, username: str):
         # Bước 3: Tạo link chuẩn theo mẫu
         roseal_link = f"https://www.roseal.live/join?placeId={place_id}&gameInstanceId={game_instance_id}"
         
-        # Đưa link vào trong code block ``` để Discord hiện nút copy nhanh ở góc trên bên phải khung
-        message = f"**Link Roseal của {display_name} (@{username}):**\n```\n{roseal_link}\n```"
+        # Hiển thị link bấm được ở trên để vào nhanh, và khung code bên dưới để copy
+        message = (
+            f"**Link Roseal của {display_name} (@{username}):**\n"
+            f"🔗 [Bấm vào đây để join game nhanh]({roseal_link})\n\n"
+            f"Hoặc copy link bên dưới:\n"
+            f"```\n{roseal_link}\n```"
+        )
         await interaction.followup.send(message)
             
     except Exception as e:
@@ -95,15 +100,21 @@ async def roseal(interaction: discord.Interaction, username: str):
 async def profilelink(interaction: discord.Interaction, username: str):
     await interaction.response.defer(thinking=True)
     try:
-        url = "[https://users.roblox.com/v1/usernames/users](https://users.roblox.com/v1/usernames/users)"
+        url = "https://users.roblox.com/v1/usernames/users"
         payload = {"usernames": [username], "excludeBannedUsers": True}
         response = requests.post(url, json=payload).json()
         
         if response.get("data") and len(response["data"]) > 0:
             user_id = response["data"][0]["id"]
             display_name = response["data"][0]["displayName"]
-            profile_link = f"[https://www.roblox.com/users/](https://www.roblox.com/users/){user_id}/profile"
-            await interaction.followup.send(f"**Profile của {display_name} (@{username}):**\n```\n{profile_link}\n```")
+            profile_link = f"https://www.roblox.com/users/{user_id}/profile"
+            
+            message = (
+                f"**Profile của {display_name} (@{username}):**\n"
+                f"🔗 [Bấm vào đây để mở profile]({profile_link})\n\n"
+                f"```\n{profile_link}\n```"
+            )
+            await interaction.followup.send(message)
         else:
             await interaction.followup.send(f"Không tìm thấy người dùng Roblox `{username}`!", ephemeral=True)
     except Exception as e:
