@@ -38,14 +38,13 @@ client = MyClient()
 async def on_ready():
     print(f'Bot đã đăng nhập thành công với tên: {client.user}')
 
-# --- PHẦN 3: Lệnh /roseal hiển thị cả link bấm được lẫn khung copy ---
+# --- PHẦN 3: Lệnh /roseal ---
 @client.tree.command(name="roseal", description="Tạo link Roseal join game của người chơi Roblox")
 @app_commands.describe(username="Nhập tên người dùng Roblox")
 async def roseal(interaction: discord.Interaction, username: str):
     await interaction.response.defer(thinking=True)
     
     try:
-        # Bước 1: Lấy User ID từ Username
         user_url = "https://users.roblox.com/v1/usernames/users"
         payload = {"usernames": [username], "excludeBannedUsers": True}
         res = requests.post(user_url, json=payload).json()
@@ -57,7 +56,6 @@ async def roseal(interaction: discord.Interaction, username: str):
         user_id = res["data"][0]["id"]
         display_name = res["data"][0]["displayName"]
         
-        # Bước 2: Kiểm tra trạng thái hoạt động (Presence) để lấy placeId và gameInstanceId
         presence_url = "https://presence.roblox.com/v1/presence/users"
         presence_res = requests.post(presence_url, json={"userIds": [user_id]}).json()
         
@@ -66,9 +64,7 @@ async def roseal(interaction: discord.Interaction, username: str):
             return
             
         presence_data = presence_res["userPresences"][0]
-        user_presence_type = presence_data.get("userPresenceType")
-        
-        if user_presence_type != 2:
+        if presence_data.get("userPresenceType") != 2:
             await interaction.followup.send(f"Người chơi **{display_name}** (`{username}`) hiện không trong game hoặc đang ẩn trạng thái hoạt động!", ephemeral=True)
             return
             
@@ -79,10 +75,8 @@ async def roseal(interaction: discord.Interaction, username: str):
             await interaction.followup.send(f"Người chơi **{display_name}** đang chơi game nhưng không lấy được thông tin server cụ thể.", ephemeral=True)
             return
             
-        # Bước 3: Tạo link chuẩn theo mẫu
         roseal_link = f"https://www.roseal.live/join?placeId={place_id}&gameInstanceId={game_instance_id}"
         
-        # Hiển thị link bấm được ở trên để vào nhanh, và khung code bên dưới để copy
         message = (
             f"**Link Roseal của {display_name} (@{username}):**\n"
             f"🔗 [Bấm vào đây để join game nhanh]({roseal_link})\n\n"
@@ -94,7 +88,7 @@ async def roseal(interaction: discord.Interaction, username: str):
     except Exception as e:
         await interaction.followup.send(f"Đã xảy ra lỗi khi xử lý: {str(e)}", ephemeral=True)
 
-# --- PHẦN 4: Lệnh /profilelink dự phòng ---
+# --- PHẦN 4: Lệnh /profilelink ---
 @client.tree.command(name="profilelink", description="Tra cứu link profile Roblox chính thức qua API")
 @app_commands.describe(username="Nhập tên người dùng Roblox")
 async def profilelink(interaction: discord.Interaction, username: str):
@@ -119,6 +113,63 @@ async def profilelink(interaction: discord.Interaction, username: str):
             await interaction.followup.send(f"Không tìm thấy người dùng Roblox `{username}`!", ephemeral=True)
     except Exception as e:
         await interaction.followup.send(f"Lỗi: {str(e)}", ephemeral=True)
+
+# --- PHẦN 5: Lệnh /callraid (Giao diện y chang mẫu) ---
+@client.tree.command(name="callraid", description="Tạo thông báo điều phối chiến dịch Raid")
+@app_commands.describe(
+    username="Tên người dùng Roblox mục tiêu",
+    region="Khu vực server (VD: Singapore)",
+    targets="Mục tiêu raid (VD: ALL MHL, BOT)",
+    ping="Chọn role cần ping thông báo"
+)
+async def callraid(interaction: discord.Interaction, username: str, region: str, targets: str, ping: discord.Role):
+    await interaction.response.defer(thinking=True)
+    
+    try:
+        # Lấy thông tin user từ Roblox API
+        user_url = "https://users.roblox.com/v1/usernames/users"
+        payload = {"usernames": [username], "excludeBannedUsers": True}
+        res = requests.post(user_url, json=payload).json()
+        
+        if not res.get("data") or len(res["data"]) == 0:
+            await interaction.followup.send(f"Không tìm thấy người dùng Roblox có tên `{username}`!", ephemeral=True)
+            return
+            
+        user_id = res["data"][0]["id"]
+        display_name = res["data"][0]["displayName"]
+        profile_link = f"https://www.roblox.com/users/{user_id}/profile"
+        
+        # Kiểm tra trạng thái để lấy link Roseal
+        presence_url = "https://presence.roblox.com/v1/presence/users"
+        presence_res = requests.post(presence_url, json={"userIds": [user_id]}).json()
+        
+        roseal_link = "Không trong game"
+        if presence_res.get("userPresences") and len(presence_res["userPresences"]) > 0:
+            p_data = presence_res["userPresences"][0]
+            if p_data.get("userPresenceType") == 2:
+                place_id = p_data.get("rootPlaceId")
+                game_instance_id = p_data.get("gameId")
+                if place_id and game_instance_id:
+                    roseal_link = f"https://www.roseal.live/join?placeId={place_id}&gameInstanceId={game_instance_id}"
+
+        # Xây dựng định dạng chuẩn theo đúng mẫu hình ảnh bạn cung cấp
+        content_ping = ping.mention if ping else "@here"
+        
+        raid_message = (
+            f"{content_ping}\n"
+            f"⚔️ **SYSTEM // RAID DEPLOYMENT** ⚔️\n\n"
+            f"🔹 **ACCOUNT:** [{username}] ({display_name})\n"
+            f"🔗 **PROFILE:** [Click here to view]({profile_link})\n"
+            f"🔗 **ROSEAL LINK:** [Click here to view]({roseal_link if roseal_link.startswith('http') else 'https://www.roseal.live'})\n"
+            f"🌐 **REGION:** [{region}]\n"
+            f"🎯 **TARGETS:** [{targets}]\n"
+            f"🔔 **PINGS:** {ping.mention}"
+        )
+        
+        await interaction.followup.send(raid_message)
+        
+    except Exception as e:
+        await interaction.followup.send(f"Đã xảy ra lỗi khi tạo raid call: {str(e)}", ephemeral=True)
 
 # --- KHỞI ĐỘNG ---
 if __name__ == '__main__':
