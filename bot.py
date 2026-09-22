@@ -23,6 +23,10 @@ def keep_alive():
 # --- PHẦN 2: Code Bot Discord của bạn ---
 TOKEN = os.getenv("DISCORD_TOKEN")
 
+# Biến toàn cục để lưu trữ danh sách các active raid (Lưu tạm trong RAM)
+active_raids = {}
+raid_counter = 0
+
 class MyClient(discord.Client):
     def __init__(self):
         super().__init__(intents=discord.Intents.default())
@@ -114,8 +118,8 @@ async def profilelink(interaction: discord.Interaction, username: str):
     except Exception as e:
         await interaction.followup.send(f"Lỗi: {str(e)}", ephemeral=True)
 
-# --- PHẦN 5: Lệnh /callraid (Đã bỏ ping thừa ở đầu) ---
-@client.tree.command(name="callraid", description="Tạo thông báo điều phối chiến dịch Raid")
+# --- PHẦN 5: Lệnh /callraid ---
+@client.tree.command(name="callraid", description="Tạo thông báo điều phối chiến dịch Raid kèm mã định danh")
 @app_commands.describe(
     username="Tên người dùng Roblox mục tiêu",
     region="Khu vực server (VD: Singapore)",
@@ -125,6 +129,7 @@ async def profilelink(interaction: discord.Interaction, username: str):
 async def callraid(interaction: discord.Interaction, username: str, region: str, targets: str, ping: discord.Role):
     await interaction.response.defer(thinking=True)
     
+    global raid_counter
     try:
         user_url = "https://users.roblox.com/v1/usernames/users"
         payload = {"usernames": [username], "excludeBannedUsers": True}
@@ -150,8 +155,19 @@ async def callraid(interaction: discord.Interaction, username: str, region: str,
                 if place_id and game_instance_id:
                     roseal_link = f"https://www.roseal.live/join?placeId={place_id}&gameInstanceId={game_instance_id}"
 
-        # Bỏ dòng ping ở trên, chỉ giữ lại phần PINGS ở dưới
+        raid_counter += 1
+        raid_id = f"Raid{raid_counter}"
+
+        active_raids[raid_id] = {
+            "username": username,
+            "display_name": display_name,
+            "user_id": user_id,
+            "region": region,
+            "targets": targets
+        }
+
         raid_message = (
+            f"🔹 **MÃ RAID:** `#{raid_id}`\n"
             f"⚔️ **SYSTEM // RAID DEPLOYMENT** ⚔️\n\n"
             f"🔹 **ACCOUNT:** [{username}] ({display_name})\n"
             f"🔗 **PROFILE:** [Click here to view]({profile_link})\n"
@@ -166,10 +182,50 @@ async def callraid(interaction: discord.Interaction, username: str, region: str,
     except Exception as e:
         await interaction.followup.send(f"Đã xảy ra lỗi khi tạo raid call: {str(e)}", ephemeral=True)
 
-# --- KHỞI ĐỘNG ---
-if __name__ == '__main__':
-    keep_alive()
-    if TOKEN:
-        client.run(TOKEN)
-    else:
-        print("Lỗi: Không tìm thấy DISCORD_TOKEN trong biến môi trường!")
+# --- PHẦN 6: Lệnh /linecheck ---
+@client.tree.command(name="linecheck", description="Kiểm tra trạng thái hiện tại của mã Raid")
+@app_commands.describe(raid_code="Nhập mã raid cần check (VD: Raid1, Raid2...)")
+async def linecheck(interaction: discord.Interaction, raid_code: str):
+    await interaction.response.defer(thinking=True)
+    
+    clean_code = raid_code.replace("#", "").strip()
+    
+    if clean_code not in active_raids:
+        await interaction.followup.send(f"Không tìm thấy mã raid `#{clean_code}`! Có thể mã không tồn tại hoặc đã bị kết thúc.", ephemeral=True)
+        return
+        
+    raid_info = active_raids[clean_code]
+    username = raid_info["username"]
+    display_name = raid_info["display_name"]
+    user_id = raid_info["user_id"]
+    
+    try:
+        presence_url = "https://presence.roblox.com/v1/presence/users"
+        presence_res = requests.post(presence_url, json={"userIds": [user_id]}).json()
+        
+        status_text = "❌ Đang ngoại tuyến hoặc không trong game"
+        roseal_link = "Không có"
+        
+        if presence_res.get("userPresences") and len(presence_res["userPresences"]) > 0:
+            p_data = presence_res["userPresences"][0]
+            p_type = p_data.get("userPresenceType")
+            
+            if p_type == 2:
+                place_id = p_data.get("rootPlaceId")
+                game_instance_id = p_data.get("gameId")
+                if place_id and game_instance_id:
+                    roseal_link = f"https://www.roseal.live/join?placeId={place_id}&gameInstanceId={game_instance_id}"
+                    status_text = "✅ Đang trong game (Server hoạt động bình thường)"
+            elif p_type == 1:
+                status_text = "🌐 Đang ở trang chủ Roblox"
+            elif p_type == 3:
+                status_text = "📱 Đang dùng Roblox Studio / Khác"
+
+        check_message = (
+            f"🔍 **LINE CHECK RESULTS // `#{clean_code}`**\n\n"
+            f"👤 **Target:** [{username}] ({display_name})\n"
+            f"📊 **Trạng thái:** {status_text}\n"
+            f"🌐 **Region cũ:** [{raid_info['region']}]\n"
+            f"🎯 **Targets cũ:** [{raid_info['targets']}]\n"
+            f"🔗 **Link Roseal mới nhất:** [Click here to join]({roseal_link if roseal_link.startswith('http') else 'https://www.roseal.live'})\n"
+            f"```\n{roseal_link}\n
