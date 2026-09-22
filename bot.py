@@ -114,19 +114,18 @@ async def profilelink(interaction: discord.Interaction, username: str):
     except Exception as e:
         await interaction.followup.send(f"Lỗi: {str(e)}", ephemeral=True)
 
-# --- PHẦN 5: Lệnh /callraid (Giao diện y chang mẫu) ---
+# --- PHẦN 5: Lệnh /callraid (Đã bỏ ping thừa ở đầu) ---
 @client.tree.command(name="callraid", description="Tạo thông báo điều phối chiến dịch Raid")
 @app_commands.describe(
     username="Tên người dùng Roblox mục tiêu",
     region="Khu vực server (VD: Singapore)",
-    targets="Mục tiêu raid (VD: ALL MHL, BOT)",
+    targets="Mục tiêu raid (VD: MHL, ALL, FTW)",
     ping="Chọn role cần ping thông báo"
 )
 async def callraid(interaction: discord.Interaction, username: str, region: str, targets: str, ping: discord.Role):
     await interaction.response.defer(thinking=True)
     
     try:
-        # Lấy thông tin user từ Roblox API
         user_url = "https://users.roblox.com/v1/usernames/users"
         payload = {"usernames": [username], "excludeBannedUsers": True}
         res = requests.post(user_url, json=payload).json()
@@ -139,11 +138,10 @@ async def callraid(interaction: discord.Interaction, username: str, region: str,
         display_name = res["data"][0]["displayName"]
         profile_link = f"https://www.roblox.com/users/{user_id}/profile"
         
-        # Kiểm tra trạng thái để lấy link Roseal
         presence_url = "https://presence.roblox.com/v1/presence/users"
         presence_res = requests.post(presence_url, json={"userIds": [user_id]}).json()
         
-        roseal_link = "Không trong game"
+        roseal_link = "https://www.roseal.live"
         if presence_res.get("userPresences") and len(presence_res["userPresences"]) > 0:
             p_data = presence_res["userPresences"][0]
             if p_data.get("userPresenceType") == 2:
@@ -152,15 +150,12 @@ async def callraid(interaction: discord.Interaction, username: str, region: str,
                 if place_id and game_instance_id:
                     roseal_link = f"https://www.roseal.live/join?placeId={place_id}&gameInstanceId={game_instance_id}"
 
-        # Xây dựng định dạng chuẩn theo đúng mẫu hình ảnh bạn cung cấp
-        content_ping = ping.mention if ping else "@here"
-        
+        # Bỏ dòng ping ở trên, chỉ giữ lại phần PINGS ở dưới
         raid_message = (
-            f"{content_ping}\n"
             f"⚔️ **SYSTEM // RAID DEPLOYMENT** ⚔️\n\n"
             f"🔹 **ACCOUNT:** [{username}] ({display_name})\n"
             f"🔗 **PROFILE:** [Click here to view]({profile_link})\n"
-            f"🔗 **ROSEAL LINK:** [Click here to view]({roseal_link if roseal_link.startswith('http') else 'https://www.roseal.live'})\n"
+            f"🔗 **ROSEAL LINK:** [Click here to view]({roseal_link})\n"
             f"🌐 **REGION:** [{region}]\n"
             f"🎯 **TARGETS:** [{targets}]\n"
             f"🔔 **PINGS:** {ping.mention}"
